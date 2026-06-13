@@ -7,7 +7,7 @@ on:
 
 env:
   AWS_REGION: ap-south-1
-  #AWS_ACCOUNT_ID: 924029800377
+  AWS_ACCOUNT_ID: 924029800377
   ECR_REPOSITORY: manivannank/github-action-docker-ec2
   CONTAINER_NAME: github-action-docker-ec2
 
