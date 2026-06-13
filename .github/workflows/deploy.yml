@@ -6,7 +6,7 @@ on:
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: manivannank/github-action-docker-ec2
-
+  CONTAINER_NAME: github-action-docker-ec2
 jobs:
   build:
 
@@ -46,3 +46,29 @@ jobs:
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          # Clean up old containers and images to save disk space
+          docker stop ${{ secrets.ECR_REPOSITORY }} || true
+          docker rm ${{ secrets.ECR_REPOSITORY }} || true
+          docker system prune -f || true
+
+          # Authenticate Docker on the EC2 instance with AWS ECR
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCESS_KEY_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+          # Pull the latest image
+          docker pull ${{ secrets.AWS_ACCESS_KEY_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}://{{ secrets.ECR_REPOSITORY }}:latest
+
+          # Stop old container (if running) 
+          docker stop ${{ env.CONTAINER_NAME }} || true
+          docker rm ${{ env.CONTAINER_NAME }} || true
+
+          
+          # Run the new container (Adjust the port mapping -p as per your application configuration)
+          docker run -d --name ${{ secrets.ECR_REPOSITORY }} -p 80:8000 --restart unless-stopped ${{ secrets.AWS_ACCESS_KEY_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}://{{ secrets.ECR_REPOSITORY }}:latest
